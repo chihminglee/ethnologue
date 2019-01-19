@@ -1,0 +1,51 @@
+```{r}
+# install and load required package
+install.packages("rvest")
+library(rvest)
+library(stringr)
+
+# load main webpage
+main_url = "https://www.ethnologue.com/browse/families"
+main_wp = read_html(url_main)
+
+# extracat language family names and urls
+main_html = html_nodes(main_wp, "span a")
+main_text = html_text(fam_html)
+main_link = paste(
+  "https://www.ethnologue.com",
+  html_attr(main_html, "href"),
+  sep = ""
+)
+
+
+fam_url = main_link[18*4+1]
+fam_wp = read_html(fam_url)
+
+
+
+"https://www.ethnologue.com/language/ciy/21" %>% read_html() %>% html_nodes("div a") %>% html_text()
+
+
+
+
+
+
+
+
+
+
+fam_name = regmatches(fam_text, regexpr("[^ \\(]+", fam_text))
+fam_count = gsub("[\\(\\)]", "", regmatches(fam_text, gregexpr("\\(.*?\\)", fam_text)))
+
+
+fam_df = data.frame(fam_name, fam_count, fam_link)
+fam_df[21,1:2] = c("Arai", 6)
+
+# create language table
+lan_df = data.frame()
+for(fam in fam_df[,1]){
+  
+}
+
+
+```
