@@ -6,45 +6,85 @@ library(stringr)
 
 # load main webpage
 main_url = "https://www.ethnologue.com/browse/families"
-main_wp = read_html(url_main)
+main_wp = read_html(main_url)
 
-# extracat language family names and urls
+# extracat language family urls
 main_html = html_nodes(main_wp, "span a")
-main_text = html_text(fam_html)
 main_link = paste(
   "https://www.ethnologue.com",
   html_attr(main_html, "href"),
   sep = ""
 )
 
+#create blank dataframe
+nrow = 0
+x = 1
+X = length(main_link)
+for(fam_url in main_link){
+  paste("calculating #languages... (", x, "/", X, ")", sep="") %>% print()
+  fam_wp = read_html(fam_url)
+  nrow = fam_wp %>% html_nodes(".field-content a") %>% length() %>% +nrow
+  x = x + 1
+}
+paste("number of languages = ", x) %>% print() #nrow=14940 (2019.01.19)
+lan_df = data.frame(matrix(nrow=nrow, ncol=30))
 
-fam_url = main_link[18*4+1]
-fam_wp = read_html(fam_url)
+# extract langauge names and information
+n = 1
+for(fam_url in main_link){
+  fam_wp = read_html(fam_url)
+  lan_text_list = html_nodes(fam_wp, ".field-content a")
+  lan_url_list0 = paste(
+    "https://www.ethnologue.com",
+    html_attr(lan_text_list, "href") ,
+    sep = ""
+  )
+  m = length(lan_url_list0)/2
+  lan_url_list = lan_url_list0[seq(1,m,2)]
+  for(lan_url in lan_url_list){
+    lan_wp = read_html(lan_url)
+    lan_name = html_nodes(lan_wp, "#page-title") %>% html_text()                    #lan_name(21)
+    lan_label = html_nodes(lan_wp, ".field-label") %>% html_text()
+    lan_item0 = html_nodes(lan_wp, ".field-item") %>% html_text()
+    lan_item = lan_item0[-1]
+    
+    paste(n,"/",nrow, ": extracting information from ", lan_name, sep="") %>% print()
+    
+    lan_class0 = lan_item[grep("Classification", lan_label)]               
+    lan_class = strsplit(lan_class0, ", ")[[1]]                                     #lan_class(*)
+    
+    lan_alt_name = lan_item[grep("Alternate Names", lan_label)]
+    if(length(lan_alt_name) == 0){
+      lan_alt_name = NA
+    }                                                                               #lan_alt_name(22)
+    
+    lan_country_major = strsplit(lan_item0[1], "A language of ")[[1]][2]            #lan_major_country(23)
+    
+    lan_country_text = html_nodes(lan_wp, "div span") %>% html_text()
 
-
-
-"https://www.ethnologue.com/language/ciy/21" %>% read_html() %>% html_nodes("div a") %>% html_text()
-
-
-
-
-
-
-
-
-
-
-fam_name = regmatches(fam_text, regexpr("[^ \\(]+", fam_text))
-fam_count = gsub("[\\(\\)]", "", regmatches(fam_text, gregexpr("\\(.*?\\)", fam_text)))
-
-
-fam_df = data.frame(fam_name, fam_count, fam_link)
-fam_df[21,1:2] = c("Arai", 6)
-
-# create language table
-lan_df = data.frame()
-for(fam in fam_df[,1]){
-  
+    if(length(lan_country_text)>2){
+      lan_country_text1 = lan_country_text[-1:-4]
+      m = length(lan_country_text1)/3
+      lan_country0 = lan_country_text1[seq(1,m,3)]
+      lan_country = paste(lan_country_major, lan_country0, sep = ", ") 
+    }else{
+      lan_country = lan_country_major
+    }                                                                               #lan_country(24)
+    
+    
+    
+    lan_df[n,21] = lan_name
+    lan_df[n,22] = lan_alt_name
+    lan_df[n,23] = lan_country_major
+    lan_df[n,24] = lan_country
+    for(i in 1:length(lan_class)){
+      lan_df[n,i] = lan_class[i]
+    }
+    lan_df[n,i+1] = lan_name
+    n = n + 1
+           
+    
+  }
 }
 
 
