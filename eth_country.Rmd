@@ -1,0 +1,177 @@
+```{r}
+#install.packages("rvest")
+library(rvest)
+library(stringr)
+
+url_test = F
+warning_count = 0
+while(url_test == F){
+  url = readline(prompt="Enter Ethnologue URL: ")
+  if(url == "debug"){
+    break
+  }
+  test1 = strsplit(url, "/")[[1]][3]
+  test2 = strsplit(url, "/")[[1]][4]
+  test3 = strsplit(url, "/")[[1]][6]
+  if(is.na(test1) == F & is.na(test2) == F & is.na(test3) == F){
+    if(test1 == "www.ethnologue.com" & test2 == "country" & test3 == "languages"){
+        url_test = T
+    }
+  }
+  warning_count = warning_count + 1
+  if(warning_count > 1){
+     cat(paste("You must enter the URL of the LANGUAGE page", 
+           "e.g. 'https://www.ethnologue.com/country/US/languages", 
+           "instead of 'https://www.ethnologue.com/country/US'" ,sep="\n"))
+    }
+}
+
+con = read_html(url)
+lan_name_full = con %>% 
+  html_nodes(".title") %>%
+  html_text() %>%
+  trimws()
+lan_name = lan_name_full[-1]
+
+lan_n = length(lan_name)
+
+lan_code_href = con %>% 
+  html_nodes("div a") %>%
+  html_attr("href")
+lan_code_href_split = strsplit(lan_code_href, "/")
+lan_code_href_2 = sapply(lan_code_href_split, function(x) x[2])
+lan_code_full_NA = lan_code_href[lan_code_href_2 == "language"]
+lan_code_full = lan_code_full_NA[is.na(lan_code_full_NA) == F]
+lan0 = lan_code_full[1]
+lan0_n = 1
+next_lan_sig = F
+for(i in 2:length(lan_code_full)){
+  lan1 = lan_code_full[i]
+  if(next_lan_sig == T){
+    lan0 = lan1
+    lan0_n = i
+    next_lan_sig = F
+  }else{
+    if(lan1 == lan0){
+      lan_code_full[(lan0_n+1):i] = NA
+      next_lan_sig = T
+    }
+  }
+}
+lan_code = lan_code_full[is.na(lan_code_full) == F]
+lan_name_url = paste0("https://ethnologue.com", lan_code, "/")
+
+col_names = c("name", "alt_name", "class", "dialect", "url")
+full_names = list(-99, c("Alternate Names", "Autonym"), "Classification", "Dialects", -99)
+df = data.frame(matrix(nrow = lan_n, ncol = length(col_names)))
+colnames(df) = col_names
+df[,1] =lan_name
+df[, ncol(df)] = lan_name_url
+
+
+for(i in 1:lan_n){
+  
+  ################
+  # print progress
+  ################
+  
+  lan_in_progress = lan_name[i]
+  progress = floor(i/lan_n * 50)
+  paste0("Extracting information of ", lan_in_progress) %>% print()
+  bar = rep("#", progress) %>% paste0(collapse = "")
+  blank = rep(" ", 50-progress) %>% paste(collapse = "")
+  paste0("[", bar, blank, "] ", i, "/", lan_n) %>% print()
+  
+  ################
+  
+  
+  html = lan_name_url[i] %>% read_html(url)
+  
+  label =  html %>% 
+    html_nodes(".field-label") %>%
+    html_text()
+  
+  content_full = html %>%
+    html_nodes(".field-items") %>%
+      html_text()
+  content = content_full[-1] %>% 
+    strsplit("\n          ") %>% 
+    sapply(function(x) x[2]) %>%
+    strsplit("\n      ") %>%
+    sapply(function(x) x[1])
+  
+  for(j in 2:(ncol(df)-1)){
+    col_name = full_names[[j]]
+    if(is.character(col_name)){
+      if(col_name[1] == -99){
+        next
+      }
+    }
+    
+    text = NULL
+    for(name in col_name){
+      text_add = content[label == name]
+      text = paste(text, text_add, sep = ", ")
+    }
+    if(length(text) == 0){
+      next
+    }
+    text_test = strsplit(text, ", ")[[1]]
+    if(text_test[1] == ""){
+      text = paste(text_test[-1], collapse = ", ")
+    }
+    df[i,j] = text
+  }  
+}
+
+write.csv( df, file = paste0(as.integer(Sys.time()), ".csv"))
+
+
+
+
+```
+
+```{r}
+name_list_comma = paste(df$name, df$alt_name, sep =", ")
+name_list = name_list_comma %>% strsplit(", ") %>% rapply(function(x) paste(x, collapse = "/"))
+
+tree_list_0 = df$class %>% strsplit(", ")
+tree_list = lapply(seq_along(tree_list_0), function(x) append(tree_list_0[[x]], name_list[[x]]))
+max_length = rapply(tree_list, length) %>% max()
+tree_list_append = lapply(tree_list, function(x) if(length(x)<max_length){
+                                                                          append(x, rep(NA, max_length-length(x)))
+                                                                          }else{
+                                                                          x  
+                                                                          }
+                                                    )
+tree_df0 = tree_list_append %>% unlist() %>% matrix(nrow = length(tree_list_append), byrow = T) %>% data.frame()
+tree_df = tree_df0[order(tree_df0$X1),]
+#tree_df = matrix(ncol = max_length, nrow = length(tree_list_append), byrow = T) %>% data.frame()
+
+
+
+
+
+```
+
+
+```{r}
+target = tree_df[5,]
+
+for(i in 1:81){
+  row = tree_df[i,]
+  fit = 0
+  for(j in 1:13){
+    if(is.na(target[j]) == T | is.na(row[j]) == T){
+      next
+    }
+    if(target[j] == row[j]){
+      fit = fit + 1
+    }else{
+      next
+    }
+  }
+  print(c(i, fit))
+}
+
+```
