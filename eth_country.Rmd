@@ -2,7 +2,6 @@
 #install.packages("rvest")
 library(rvest)
 library(stringr)
-
 url_test = F
 warning_count = 0
 while(url_test == F){
@@ -25,16 +24,13 @@ while(url_test == F){
            "instead of 'https://www.ethnologue.com/country/US'" ,sep="\n"))
     }
 }
-
 con = read_html(url)
 lan_name_full = con %>% 
   html_nodes(".title") %>%
   html_text() %>%
   trimws()
 lan_name = lan_name_full[-1]
-
 lan_n = length(lan_name)
-
 lan_code_href = con %>% 
   html_nodes("div a") %>%
   html_attr("href")
@@ -60,15 +56,12 @@ for(i in 2:length(lan_code_full)){
 }
 lan_code = lan_code_full[is.na(lan_code_full) == F]
 lan_name_url = paste0("https://ethnologue.com", lan_code, "/")
-
 col_names = c("name", "alt_name", "class", "dialect", "url")
 full_names = list(-99, c("Alternate Names", "Autonym"), "Classification", "Dialects", -99)
 df = data.frame(matrix(nrow = lan_n, ncol = length(col_names)))
 colnames(df) = col_names
 df[,1] =lan_name
 df[, ncol(df)] = lan_name_url
-
-
 for(i in 1:lan_n){
   
   ################
@@ -123,18 +116,12 @@ for(i in 1:lan_n){
     df[i,j] = text
   }  
 }
-
 write.csv( df, file = paste0(as.integer(Sys.time()), ".csv"))
-
-
-
-
 ```
 
 ```{r}
 name_list_comma = paste(df$name, df$alt_name, sep =", ")
 name_list = name_list_comma %>% strsplit(", ") %>% rapply(function(x) paste(x, collapse = "/"))
-
 tree_list_0 = df$class %>% strsplit(", ")
 tree_list = lapply(seq_along(tree_list_0), function(x) append(tree_list_0[[x]], name_list[[x]]))
 max_length = rapply(tree_list, length) %>% max()
@@ -147,31 +134,60 @@ tree_list_append = lapply(tree_list, function(x) if(length(x)<max_length){
 tree_df0 = tree_list_append %>% unlist() %>% matrix(nrow = length(tree_list_append), byrow = T) %>% data.frame()
 tree_df = tree_df0[order(tree_df0$X1),]
 #tree_df = matrix(ncol = max_length, nrow = length(tree_list_append), byrow = T) %>% data.frame()
-
-
-
-
-
 ```
 
-
 ```{r}
-target = tree_df[5,]
-
-for(i in 1:81){
-  row = tree_df[i,]
+# calculate fit
+find_fit = function(benchmark, target){
   fit = 0
-  for(j in 1:13){
-    if(is.na(target[j]) == T | is.na(row[j]) == T){
-      next
+  len_b = benchmark[is.na(benchmark) == F] %>% length()
+  len_t = target[is.na(target) == F] %>% length()
+  loop = min(len_b, len_t)
+  for(k in 1:loop){
+    X = benchmark[k]
+    Y = target[k]
+    if(is.na(X) == T | is.na(Y) == T){
+      break
     }
-    if(target[j] == row[j]){
+    if(X == Y){
       fit = fit + 1
     }else{
-      next
+      break
     }
   }
-  print(c(i, fit))
+  return(fit)
 }
+
+
+
+# reorganize dataframe
+print("Reorganizing dataframe")
+for(i in 2:lan_n){
+  
+  ###############
+  # Show Progress
+  ###############
+  progress = floor(i/lan_n * 50)
+  bar = rep("#", progress) %>% paste0(collapse = "")
+  blank = rep(" ", 50-progress) %>% paste(collapse = "")
+  paste0("[", bar, blank, "] ", i, "/", lan_n) %>% print()
+  
+  ###############
+  
+  benchmark = tree_df[i,]
+  fit_array = c()
+  len = benchmark[is.na(benchmark) == F] %>% length()
+  for(j in 1:(i-1)){
+    #print(c(i,j))
+    target = tree_df[j,]
+    fit_array = append(fit_array, find_fit(benchmark, target))
+  }
+  fit_array = append(fit_array, len)
+  subset = tree_df[1:i,]
+  subset_order = subset[order(fit_array),]
+  tree_df[1:i,] = subset_order
+}
+
+
 
 ```
